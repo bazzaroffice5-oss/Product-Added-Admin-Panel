@@ -36,7 +36,7 @@ export default function AdminLoginClient() {
 
         if (res.ok) {
           const data = await res.json();
-          if (data?.isAuthenticated && data?.user?.email) {
+          if ((data?.isAuthenticated || data?.authenticated) && data?.user?.email) {
             clearTimeout(timeoutId);
             window.location.replace('/dashboard');
             return;

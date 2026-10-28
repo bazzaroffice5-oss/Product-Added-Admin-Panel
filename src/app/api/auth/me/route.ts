@@ -9,7 +9,7 @@ export async function GET() {
 
     if (!session.isAuthenticated) {
       const response = NextResponse.json(
-        { authenticated: false, error: 'No active or authorized administrative session' },
+        { authenticated: false, isAuthenticated: false, error: 'No active or authorized administrative session' },
         { status: 401 }
       );
       clearAdminCookie(response);
@@ -18,6 +18,7 @@ export async function GET() {
 
     return NextResponse.json({
       authenticated: true,
+      isAuthenticated: true,
       user: {
         email: session.email,
         role: session.role,
