@@ -74,6 +74,11 @@ function saveDiskCustomProducts(products: Product[]) {
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(filePath, JSON.stringify(products, null, 2), 'utf-8');
+
+    const siblingPath = path.resolve(process.cwd(), '..', 'Office Bazzar Website', 'src', 'lib', 'data', 'custom_products.json');
+    if (fs.existsSync(path.dirname(siblingPath))) {
+      fs.writeFileSync(siblingPath, JSON.stringify(products, null, 2), 'utf-8');
+    }
   } catch {
     // Ignore error
   }
