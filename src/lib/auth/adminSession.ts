@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { supabase, supabaseAdmin, isSupabaseConfigured } from '@/lib/db/supabase';
 
 export const ADMIN_COOKIE_NAME = 'ob_admin_session';
@@ -143,8 +144,8 @@ export async function getAdminSession(): Promise<{
 }
 
 /**
- * Authenticate credentials against Supabase Auth (with profiles.role check)
- * and fallback server-side environment variables.
+ * Authenticate credentials primarily against Supabase Auth (with strict allowlist verification)
+ * and fallback server-side environment variables for emergency administration.
  * Enforces that only sales4@officebazzar.com and marketing@officebazzar.com may authenticate.
  */
 export async function verifyAdminCredentials(
@@ -153,7 +154,7 @@ export async function verifyAdminCredentials(
 ): Promise<{ success: boolean; message?: string; user?: { email: string; userId?: string } }> {
   const cleanEmail = email.toLowerCase().trim();
 
-  // 1. Explicit allowlist check
+  // 1. Strict allowlist check: Only sales4@officebazzar.com and marketing@officebazzar.com
   if (!isAuthorizedAdminEmail(cleanEmail)) {
     return {
       success: false,
@@ -168,36 +169,70 @@ export async function verifyAdminCredentials(
     };
   }
 
-  // 2. Check Supabase Auth if connected
-  if (isSupabaseConfigured && supabase) {
+  // 2. Primary Authentication: Supabase Auth
+  const supabaseUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.SUPABASE_URL ||
+    '';
+  const supabasePublishableKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_PUBLISHABLE_KEY ||
+    '';
+
+  const isSupabaseReady = Boolean(
+    supabaseUrl &&
+    supabasePublishableKey &&
+    !supabaseUrl.includes('your-project') &&
+    !supabaseUrl.includes('placeholder')
+  );
+
+  let supabaseErrorMessage: string | null = null;
+  let isUnconfirmedEmail = false;
+
+  if (isSupabaseReady) {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      // Create an isolated client for this server-side auth request to prevent state pollution
+      const authClient = createSupabaseClient(supabaseUrl, supabasePublishableKey, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+        },
+      });
+
+      const { data, error } = await authClient.auth.signInWithPassword({
         email: cleanEmail,
         password,
       });
 
-      if (!error && data.user) {
-        // Query profiles table to verify admin role
-        const client = supabaseAdmin || supabase;
-        const { data: profile } = await client
-          .from('profiles')
-          .select('role')
-          .eq('id', data.user.id)
-          .maybeSingle();
-
-        if (!profile || profile.role === 'admin' || profile.role === 'staff') {
+      if (!error && data?.user) {
+        // Enforce that authenticated Supabase user email strictly matches the allowlist
+        const userEmail = data.user.email?.toLowerCase().trim() || cleanEmail;
+        if (isAuthorizedAdminEmail(userEmail)) {
           return {
             success: true,
             user: { email: cleanEmail, userId: data.user.id },
           };
         }
       }
-    } catch {
-      // Continue to environment configuration fallback
+
+      if (error) {
+        supabaseErrorMessage = error.message;
+        if (
+          error.message.toLowerCase().includes('email not confirmed') ||
+          (error as { code?: string }).code === 'email_not_confirmed'
+        ) {
+          isUnconfirmedEmail = true;
+        }
+      }
+    } catch (err: unknown) {
+      supabaseErrorMessage = err instanceof Error ? err.message : 'Supabase Auth connection error';
     }
   }
 
-  // 3. Server-side environment admin configuration
+  // 3. Fallback / Emergency break-glass environment password verification
   const sales4Pass = process.env.ADMIN_PASSWORD_SALES4 || process.env.ADMIN_PASSWORD;
   const marketingPass = process.env.ADMIN_PASSWORD_MARKETING || process.env.ADMIN_PASSWORD;
 
@@ -218,6 +253,28 @@ export async function verifyAdminCredentials(
     return {
       success: true,
       user: { email: cleanEmail, userId: 'admin-marketing-user' },
+    };
+  }
+
+  // 4. Detailed error diagnostics for user awareness
+  if (isUnconfirmedEmail) {
+    return {
+      success: false,
+      message: 'Supabase email address is unconfirmed. In Supabase Dashboard → Authentication → Users, please confirm this user email (or toggle Auto Confirm User).',
+    };
+  }
+
+  if (supabaseErrorMessage) {
+    return {
+      success: false,
+      message: `Invalid administrative credentials. Supabase Authentication error: ${supabaseErrorMessage}.`,
+    };
+  }
+
+  if (!isSupabaseReady) {
+    return {
+      success: false,
+      message: 'Supabase Authentication is not configured on this server (missing NEXT_PUBLIC_SUPABASE_URL or public API key). Access is restricted to authorized personnel.',
     };
   }
 

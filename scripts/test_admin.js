@@ -82,8 +82,10 @@ async function runTests() {
   });
   assert(loginRes.statusCode === 200, 'Login page loads with 200 OK');
 
-  // 3. Strict Email Allowlist
-  console.log('\n--- Test 3: Strict 2-Email Allowlist ---');
+  // 3. Strict Email Allowlist & Password Verification
+  console.log('\n--- Test 3: Strict 2-Email Allowlist & Password Validation ---');
+  
+  // 3a. Disallowed email
   const disallowedRes = await request(
     {
       hostname: 'localhost',
@@ -97,9 +99,45 @@ async function runTests() {
       password: TEST_PASSWORD,
     })
   );
-  assert(disallowedRes.statusCode === 401, 'Disallowed email is rejected with 401');
+  assert(disallowedRes.statusCode === 401, 'Disallowed email unauthorized@example.com is rejected with 401');
 
-  // Login as sales4@officebazzar.com
+  // 3b. Missing password
+  const missingPassRes = await request(
+    {
+      hostname: 'localhost',
+      port: PORT,
+      path: '/api/auth/login',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    },
+    JSON.stringify({
+      email: 'sales4@officebazzar.com',
+      password: '',
+    })
+  );
+  assert(missingPassRes.statusCode === 400, 'Empty password returns 400 Bad Request');
+
+  // 3c. Invalid password for authorized email
+  const wrongPassRes = await request(
+    {
+      hostname: 'localhost',
+      port: PORT,
+      path: '/api/auth/login',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    },
+    JSON.stringify({
+      email: 'sales4@officebazzar.com',
+      password: 'DefinitivelyIncorrectPassword123!',
+    })
+  );
+  const wrongPassJson = wrongPassRes.json();
+  assert(
+    wrongPassRes.statusCode === 401 && wrongPassJson?.error && wrongPassJson.error.length > 0,
+    'Invalid password rejected with 401 and descriptive diagnostic error'
+  );
+
+  // 3d. Login as sales4@officebazzar.com
   const loginRes1 = await request(
     {
       hostname: 'localhost',
