@@ -1,0 +1,1 @@
+export { GET, PUT, PATCH, DELETE } from '@/app/api/products/[id]/route';
