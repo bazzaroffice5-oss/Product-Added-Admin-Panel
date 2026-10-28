@@ -52,7 +52,7 @@ export default function AdminSidebar({
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      await fetch('/api/office-control/auth/logout', { method: 'POST' });
+      await fetch('/api/auth/logout', { method: 'POST' });
     } catch {
       // Proceed even on network error
     } finally {

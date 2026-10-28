@@ -1,13 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Shield, Lock, Mail, AlertCircle, ArrowRight, Loader2, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import Image from 'next/image';
-
-const AUTHORIZED_ACCOUNTS = [
-  'sales4@officebazzar.com',
-  'marketing@officebazzar.com',
-];
+import { Lock, Mail, AlertCircle, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
 
 export default function AdminLoginClient() {
   const [email, setEmail] = useState('');
@@ -43,7 +38,6 @@ export default function AdminLoginClient() {
           const data = await res.json();
           if (data?.isAuthenticated && data?.user?.email) {
             clearTimeout(timeoutId);
-            // Valid active session confirmed -> single deterministic redirect
             window.location.replace('/dashboard');
             return;
           }
@@ -75,14 +69,6 @@ export default function AdminLoginClient() {
       return;
     }
 
-    // Client-side pre-validation against authorized list
-    if (!AUTHORIZED_ACCOUNTS.includes(cleanEmail)) {
-      setErrorMessage(
-        'Access denied: Only authorized corporate accounts (sales4@officebazzar.com, marketing@officebazzar.com) have access.'
-      );
-      return;
-    }
-
     setIsLoading(true);
 
     try {
@@ -100,7 +86,7 @@ export default function AdminLoginClient() {
         return;
       }
 
-      // Success: single redirect to dashboard
+      // Success: single deterministic redirect to dashboard
       window.location.replace('/dashboard');
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Network error during login.');
@@ -111,14 +97,21 @@ export default function AdminLoginClient() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100/90 py-12 px-4 sm:px-6 lg:px-8">
       <div className="w-full max-w-md">
-        {/* Top Header Branding */}
+        {/* Top Header Branding with Official Logo */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#ea580c] to-amber-500 text-white mb-3 shadow-lg shadow-orange-500/20">
-            <Shield className="w-7 h-7" />
+          <div className="flex justify-center mb-3">
+            <Image
+              src="/images/officebazzar-logo-transparent.png"
+              alt="Office Bazzar"
+              width={360}
+              height={180}
+              priority
+              className="w-48 sm:w-56 h-auto object-contain"
+            />
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 flex items-center justify-center gap-2">
-            <span>OfficeBazzar</span>
-            <span className="text-xs uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-orange-100 text-[#ea580c] border border-orange-200">
+            <span>Office Bazzar</span>
+            <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-orange-100 text-[#ea580c] border border-orange-200">
               Admin
             </span>
           </h1>
@@ -140,25 +133,6 @@ export default function AdminLoginClient() {
                 <span>Checking active session...</span>
               </div>
             )}
-
-            {/* Authorized Accounts Notice */}
-            <div className="mb-5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600">
-              <span className="font-bold text-slate-800 block mb-1">Designated Admin Accounts:</span>
-              <div className="flex flex-wrap gap-1.5 mt-1">
-                {AUTHORIZED_ACCOUNTS.map((account) => (
-                  <button
-                    key={account}
-                    type="button"
-                    onClick={() => setEmail(account)}
-                    title={`Click to fill ${account}`}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white border border-slate-300 text-[11px] font-mono text-slate-700 hover:border-[#ea580c] hover:text-[#ea580c] transition-colors cursor-pointer"
-                  >
-                    <CheckCircle2 className="w-3 h-3 text-[#ea580c]" />
-                    <span>{account}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
 
             {/* Error Message Alert */}
             {errorMessage && (
@@ -187,7 +161,7 @@ export default function AdminLoginClient() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="sales4@officebazzar.com"
+                    placeholder="admin@officebazzar.com"
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-[#ea580c]/20 focus:border-[#ea580c] transition-all"
                   />
                 </div>
@@ -219,6 +193,7 @@ export default function AdminLoginClient() {
                     onClick={() => setShowPassword(!showPassword)}
                     tabIndex={-1}
                     className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
